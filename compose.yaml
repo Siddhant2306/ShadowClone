@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: shadow
+      POSTGRES_PASSWORD: shadow
+      POSTGRES_DB: shadow
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - shadow_data:/var/lib/postgresql/data
+volumes:
+  shadow_data:
