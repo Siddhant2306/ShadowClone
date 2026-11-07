@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
+import VoiceRecorder from "./VoiceRecorder";
 export default function Voice() {
+  const [recording, setRecording] = useState<File | null>(null);
+  const [recordingBusy, setRecordingBusy] = useState(false);
+  const [mode, setMode] = useState("record");
   const [status, setStatus] = useState("Loading"),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -46,9 +50,9 @@ export default function Voice() {
       <h1>Your voice identity.</h1>
       <p>Status: {status}</p>
       <p>
-        Upload 5–30 seconds of clean, mono 16-bit PCM WAV audio (maximum 3 MB).
-        Reference audio is processed temporarily; only the returned voice
-        embedding is saved.
+        Record your voice below or upload 5–30 seconds of mono 16-bit PCM WAV
+        audio (maximum 5 MB). Reference audio is processed temporarily; only the
+        returned voice embedding is saved.
       </p>
       {error && (
         <p role="alert" className="error">
@@ -58,13 +62,47 @@ export default function Voice() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          call("/enrol", "POST", new FormData(e.currentTarget));
+          if (recordingBusy) return;
+          const body = new FormData(e.currentTarget);
+          if (mode === "record") {
+            if (!recording) {
+              setError("Record your voice before enrolling.");
+              return;
+            }
+            body.set("file", recording);
+          }
+          call("/enrol", "POST", body);
         }}
       >
         <label>
-          Your reference recording
-          <input type="file" name="file" accept=".wav" required />
+          Audio source
+          <select
+            value={mode}
+            disabled={busy || recordingBusy}
+            onChange={(e) => setMode(e.target.value)}
+          >
+            <option value="record">Record with microphone</option>
+            <option value="upload">Upload a WAV file</option>
+          </select>
         </label>
+        {mode === "record" ? (
+          <VoiceRecorder
+            onRecorded={setRecording}
+            onBusy={setRecordingBusy}
+            disabled={busy}
+          />
+        ) : (
+          <label>
+            Your reference recording
+            <input
+              type="file"
+              name="file"
+              accept=".wav"
+              required
+              disabled={busy}
+            />
+          </label>
+        )}
         <label>
           <input
             style={{ width: "auto" }}
@@ -76,12 +114,22 @@ export default function Voice() {
           This is my voice. I consent to creating and using its AI
           representation.
         </label>
-        <button disabled={busy}>{busy ? "Processing…" : "Enrol voice"}</button>
+        <button
+          disabled={busy || recordingBusy || (mode === "record" && !recording)}
+        >
+          {busy ? "Processing…" : "Enrol voice"}
+        </button>
       </form>
-      <button disabled={busy} onClick={() => call("/test", "POST")}>
+      <button
+        disabled={busy || recordingBusy}
+        onClick={() => call("/test", "POST")}
+      >
         Test cloned voice
       </button>{" "}
-      <button disabled={busy} onClick={() => call("", "DELETE")}>
+      <button
+        disabled={busy || recordingBusy}
+        onClick={() => call("", "DELETE")}
+      >
         Revoke & delete local voice
       </button>
       {url && (

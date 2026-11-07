@@ -26,3 +26,9 @@ Setup instructions: README.md.
 - Added Voice identity and Conversations screens.
 - Frontend production build passes. Expanded backend suite: 4 passed (SQLite, mocked reasoning only).
 - Remaining: live microphone/WebSocket conversation loop, streaming providers, richer onboarding, configurable deterministic rules/timeouts, summaries, separate approval centre, rate limiting, deployment hardening and browser visual verification. Overall acceptance is NOT complete.
+
+## Ollama integration
+Configured the local environment to use the installed qwen3:4b model through Ollama. Added schema-constrained /api/chat requests, validated responses, explicit connection/timeout/model errors, and retained optional Anthropic support. A real Ollama request with synthetic memory returned valid structured output. Backend suite: 6 passed. Gnani credentials were preserved; live Gnani verification is still outstanding. The full audio conversation pipeline remains unfinished.
+
+## Gnani synthesis fix (2026-11-08)
+The live API returned HTTP 400 because model was required despite documentation describing automatic selection. Synthesis now explicitly sends model=vachana-vc-v1. A real request using the enrolled voice succeeded and returned WAV audio. This verifies synthesis, not the complete live conversation pipeline.

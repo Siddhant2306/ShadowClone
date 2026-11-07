@@ -59,6 +59,7 @@ async def synthesize(text, embedding):
         "/api/v1/tts/inference",
         json={
             "text": text,
+            "model": "vachana-vc-v1",
             "speaker_embedding": embedding,
             "audio_config": {
                 "sample_rate": 24000,

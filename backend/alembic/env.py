@@ -1,5 +1,6 @@
 from alembic import context
-from app.main import Base, engine
+from app.database import Base, engine
+from app import models  # Register every model without importing the web application.
 
 with engine.connect() as connection:
     context.configure(connection=connection, target_metadata=Base.metadata)

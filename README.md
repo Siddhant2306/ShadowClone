@@ -1,27 +1,35 @@
-# Run Shadow Clone foundation
+# Running Shadow Clone
 
-Implemented: registration/login/logout, cookie sessions, owner-isolated profiles and confirmed memories, React interface and initial Alembic migration.
+## Database: Supabase only
+The application uses DATABASE_URL from backend/.env. There is no local database fallback. The configured Supabase connection uses TLS. Docker is not required for the database; compose.yaml is a legacy local-development configuration and is not used by the application.
 
-This is an incomplete foundation, not the requested end-to-end voice product. Voice, LLM, approvals, WebSockets and call/meeting simulation are not implemented.
+Copy backend/.env.example only when creating a new environment; do not overwrite your configured .env. Supply your Supabase PostgreSQL connection string with the postgresql+psycopg driver. Keep all credentials backend-only and never commit .env.
 
-## Local setup (PowerShell)
-1. Start Docker Desktop, then run `docker compose up -d` from this directory.
-2. Install Python requirements into `.venv`: `python -m pip --python .venv/Scripts/python.exe install -r backend/requirements.txt`.
-3. In `backend`, run `../.venv/Scripts/python -m alembic upgrade head`.
-4. In `backend`, run `../.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`.
-5. From the root, run `npm.cmd install --prefix frontend`, then `npm.cmd run dev --prefix frontend`.
-6. Open http://localhost:5173. Register with a password of at least 12 characters.
+From backend, apply migrations when deploying schema changes:
+```powershell
+..\.venv\Scripts\python.exe -m alembic upgrade head
+```
 
-The default database password is for local development only. Set DATABASE_URL and FRONTEND_URL as environment variables for other environments. COOKIE_SECURE=true is required behind production HTTPS. Deployment hardening and login rate limiting remain unfinished.
+## Start backend
+```powershell
+cd C:\Users\Siddhant\ShadowClone\backend
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+API documentation: http://127.0.0.1:8000/docs
 
-API schemas are available at http://127.0.0.1:8000/docs when the backend runs.
+## Start frontend
+```powershell
+cd C:\Users\Siddhant\ShadowClone\frontend
+npm.cmd install
+npm.cmd run dev
+```
+Open http://localhost:5173 or http://127.0.0.1:5173.
 
-Tests: from backend run `../.venv/Scripts/python -m pytest -q`. Tests use isolated SQLite, not PostgreSQL.
+## Providers
+Keep Ollama running. LLM_PROVIDER=ollama, LLM_MODEL=qwen3:4b and OLLAMA_BASE_URL=http://127.0.0.1:11434 use the installed local model; no LLM_API_KEY is required. Anthropic remains an optional provider. GNANI_API_KEY enables the implemented voice adapters. Restart the backend after changing .env.
 
-## Update: voice and text conversations
-PostgreSQL now uses 127.0.0.1:55432. All three migrations were applied successfully.
-Copy backend/.env.example to backend/.env and set GNANI_API_KEY for voice. For reasoning set LLM_PROVIDER=anthropic, LLM_API_KEY and LLM_MODEL to a model available to your account. The backend loads .env when launched from backend.
+## Current capabilities and limits
+Accounts, profiles, confirmed memories, voice enrolment/test/revocation, and persisted text conversations with mandatory owner approval are implemented. Voice uploads must be mono 16-bit PCM WAV, 5–30 seconds, maximum 5 MB. Real Gnani calls still need verification. Live microphone/WebSocket conversations, full onboarding, richer permissions, summaries and deployment hardening are unfinished. Calls and meetings are text simulations, not external platform connections.
 
-Voice identity supports WAV upload, explicit consent, enrolment, test playback and local revocation. Conversations supports persisted text simulations for calls/meetings, proposed LLM replies, owner edits/approval/rejection and transcript deletion. Every reply requires approval. These are not actual phone or meeting integrations.
-
-Live audio capture/streaming, configurable permissions, automatic summaries and full onboarding remain unfinished. Provider integrations require live validation. The earlier foundation-only description above is superseded by this update.
+## Tests
+From backend: `..\.venv\Scripts\python.exe -m pytest -q`. Automated tests use isolated SQLite, not Supabase. Frontend build: `npm.cmd run build` from frontend.

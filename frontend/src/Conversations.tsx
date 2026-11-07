@@ -1,5 +1,46 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import VoiceRecorder from "./VoiceRecorder";
 export default function Conversations() {
+  const [recordingBusy, setRecordingBusy] = useState(false);
+  const [speechUrl, setSpeechUrl] = useState("");
+  const [stage, setStage] = useState("");
+  const player = useRef<HTMLAudioElement>(null);
+  useEffect(
+    () => () => {
+      if (speechUrl) URL.revokeObjectURL(speechUrl);
+    },
+    [speechUrl],
+  );
+  async function speak(id: string) {
+    setStage("Generating cloned speech…");
+    const response = await fetch(`/api/conversations/${id}/speech`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw Error(data.detail || "Speech generation failed");
+    }
+    setSpeechUrl(URL.createObjectURL(await response.blob()));
+    setStage("Reply ready. Press play if your browser blocks autoplay.");
+  }
+  async function sendAudio(id: string, file: File) {
+    player.current?.pause();
+    setSpeechUrl("");
+    setStage("Transcribing and thinking…");
+    const body = new FormData();
+    body.set("file", file);
+    const response = await fetch(`/api/conversations/${id}/audio-turn`, {
+      method: "POST",
+      body,
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw Error(data.detail || "Voice request failed");
+    }
+    setStage(
+      "Review your proposed reply, then approve it to hear your cloned voice.",
+    );
+  }
   const [rows, setRows] = useState<any[]>([]),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -28,7 +69,9 @@ export default function Conversations() {
       await refresh();
     } catch (e) {
       setError((e as Error).message);
+      setStage("");
     } finally {
+      await refresh().catch(() => {});
       setBusy(false);
     }
   }
@@ -36,9 +79,20 @@ export default function Conversations() {
     <>
       <h1>Conversation workspace.</h1>
       <p>
-        Text simulation · Every response needs your approval · No real phone or
-        meeting connection
+        Browser voice conversation · Every response needs your approval · No
+        real phone or meeting connection
       </p>
+      <p role="status">{stage}</p>
+      {speechUrl && (
+        <audio
+          ref={player}
+          controls
+          autoPlay
+          src={speechUrl}
+          onPlay={() => setStage("Speaking…")}
+          onEnded={() => setStage("Ready for your next question.")}
+        />
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -72,6 +126,19 @@ export default function Conversations() {
             </p>
           ))}
           {r.status === "listening" && (
+            <VoiceRecorder
+              minimum={0.5}
+              disabled={busy || recordingBusy}
+              onBusy={(value) => {
+                setRecordingBusy(value);
+                if (value) player.current?.pause();
+              }}
+              onRecorded={(file) => {
+                if (file) act(() => sendAudio(r.id, file));
+              }}
+            />
+          )}
+          {r.status === "listening" && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -91,12 +158,13 @@ export default function Conversations() {
               onSubmit={(e) => {
                 e.preventDefault();
                 const text = new FormData(e.currentTarget).get("text");
-                act(() =>
-                  request("/" + r.id + "/resolve", "POST", {
+                act(async () => {
+                  await request("/" + r.id + "/resolve", "POST", {
                     approve: true,
                     text,
-                  }),
-                );
+                  });
+                  await speak(r.id);
+                });
               }}
             >
               <label>
@@ -107,7 +175,7 @@ export default function Conversations() {
                   defaultValue={r.transcript.at(-1).content}
                 />
               </label>
-              <button disabled={busy}>Approve response</button>{" "}
+              <button disabled={busy || recordingBusy}>Approve & speak</button>{" "}
               <button
                 type="button"
                 disabled={busy}
@@ -124,6 +192,15 @@ export default function Conversations() {
               </button>
             </form>
           )}
+          {r.status === "listening" &&
+            r.transcript.at(-1)?.role === "assistant" && (
+              <button
+                disabled={busy || recordingBusy}
+                onClick={() => act(() => speak(r.id))}
+              >
+                Speak latest reply
+              </button>
+            )}
           {r.status !== "completed" && (
             <button
               disabled={busy}

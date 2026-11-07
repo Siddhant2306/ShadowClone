@@ -5,7 +5,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import Session
-from app.main import app, Base, database
+from app.main import app
+from app.database import Base, database
 
 engine = create_engine(
     "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
@@ -80,7 +81,7 @@ def test_conversation_approval_and_isolation(monkeypatch):
             reason="test",
         )
 
-    monkeypatch.setattr("app.main.reason", fake_reason)
+    monkeypatch.setattr("app.routes.conversations.reason", fake_reason)
     a = TestClient(app, headers={"origin": "http://localhost:5173"})
     b = TestClient(app, headers={"origin": "http://localhost:5173"})
     for c, email in [(a, "convo@example.com"), (b, "other@example.com")]:
@@ -148,3 +149,21 @@ def test_voice_validation():
         == 422
     )
     assert a.post("/api/voice/test").status_code == 409
+
+
+def test_loopback_origin_and_untrusted_origin():
+    client = TestClient(app, headers={"origin": "http://127.0.0.1:5173"})
+    assert (
+        client.post(
+            "/api/auth/register",
+            json={"email": "loopback@example.com", "password": "long-password-123"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/logout", headers={"origin": "https://untrusted.example"}
+        ).status_code
+        == 403
+    )
+    assert TestClient(app).get("/api/me").status_code == 401
