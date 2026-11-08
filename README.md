@@ -29,7 +29,9 @@ Open http://localhost:5173 or http://127.0.0.1:5173.
 Keep Ollama running. LLM_PROVIDER=ollama, LLM_MODEL=qwen3:4b and OLLAMA_BASE_URL=http://127.0.0.1:11434 use the installed local model; no LLM_API_KEY is required. Anthropic remains an optional provider. GNANI_API_KEY enables the implemented voice adapters. Restart the backend after changing .env.
 
 ## Current capabilities and limits
-Accounts, profiles, confirmed memories, voice enrolment/test/revocation, and persisted text conversations with mandatory owner approval are implemented. Voice uploads must be mono 16-bit PCM WAV, 5–30 seconds, maximum 5 MB. Real Gnani calls still need verification. Live microphone/WebSocket conversations, full onboarding, richer permissions, summaries and deployment hardening are unfinished. Calls and meetings are text simulations, not external platform connections.
+Accounts, profiles, confirmed memories, voice enrolment/test/revocation, and persisted text conversations with mandatory owner approval are implemented. Voice uploads must be mono 16-bit PCM WAV, 5–30 seconds, maximum 5 MB. Real Gnani calls still need verification.
+
+The Live meeting page supports a consent-gated Google Meet browser-tab workflow. In Chrome, share the meeting tab with audio, choose a virtual cable playback output in the app, and choose that cable's recording endpoint as the microphone in Meet. The assistant plays a spoken AI disclosure before listening and prefixes every reply with the same disclosure. It uses the enrolled voice, Ollama reasoning and Gnani transcription/synthesis. Replies marked by the model as needing owner approval are withheld and replaced with a request for the owner's input. The browser does not join Meet or change Meet's microphone selection; installing/configuring a virtual audio cable and selecting its devices are manual requirements. Audio chunks are processed in memory and not persisted; the transcript is stored. Stop the assistant to end the session.
 
 ## Tests
 From backend: `..\.venv\Scripts\python.exe -m pytest -q`. Automated tests use isolated SQLite, not Supabase. Frontend build: `npm.cmd run build` from frontend.

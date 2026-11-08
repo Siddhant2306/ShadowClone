@@ -167,3 +167,144 @@ def test_loopback_origin_and_untrusted_origin():
         == 403
     )
     assert TestClient(app).get("/api/me").status_code == 401
+
+
+def test_live_meeting_requires_consent_and_voice(monkeypatch):
+    from app.models.auth import User
+    from app.models.voice import Voice
+
+    client = TestClient(app, headers={"origin": "http://localhost:5173"})
+    client.post(
+        "/api/auth/register",
+        json={"email": "live-consent@example.com", "password": "long-password-123"},
+    )
+    monkeypatch.setenv("GNANI_API_KEY", "test-key")
+    assert (
+        client.post(
+            "/api/conversations",
+            json={"channel": "google_meet_live", "participants_consented": False},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/api/conversations",
+            json={"channel": "google_meet_live", "participants_consented": True},
+        ).status_code
+        == 409
+    )
+    with Session(engine) as session:
+        user = session.query(User).filter_by(email="live-consent@example.com").one()
+        session.add(
+            Voice(user_id=user.id, embedding={"embedding": "test"}, consent_at=1)
+        )
+        session.commit()
+    created = client.post(
+        "/api/conversations",
+        json={"channel": "google_meet_live", "participants_consented": True},
+    )
+    assert created.status_code == 200
+    conversation = next(
+        item for item in client.get("/api/conversations").json()
+        if item["id"] == created.json()["id"]
+    )
+    assert conversation["status"] == "listening"
+    assert "AI assistant" in conversation["transcript"][0]["content"]
+
+
+def test_live_meeting_websocket_uses_ai_disclosure(monkeypatch):
+    import io
+    import wave
+    from app.models.auth import User
+    from app.models.voice import Voice
+    from app.reasoning import Reply
+
+    async def fake_transcribe(audio):
+        return "What is the project status?"
+
+    async def fake_reason(context):
+        assert context["channel"] == "google_meet_live"
+        return Reply(
+            response_text="The project is on track.",
+            confidence=1,
+            requires_approval=False,
+            reason="test",
+        )
+
+    async def fake_synthesize(text, embedding):
+        assert text.startswith("I'm an AI assistant speaking with my owner's permission.")
+        return b"RIFFtest-wave"
+
+    monkeypatch.setattr("app.routes.conversations.gnani.transcribe", fake_transcribe)
+    monkeypatch.setattr("app.routes.conversations.reason", fake_reason)
+    monkeypatch.setattr("app.routes.conversations.gnani.synthesize", fake_synthesize)
+    monkeypatch.setenv("GNANI_API_KEY", "test-key")
+    client = TestClient(app, headers={"origin": "http://localhost:5173"})
+    client.post(
+        "/api/auth/register",
+        json={"email": "live-websocket@example.com", "password": "long-password-123"},
+    )
+    with Session(engine) as session:
+        user = session.query(User).filter_by(email="live-websocket@example.com").one()
+        session.add(
+            Voice(user_id=user.id, embedding={"embedding": "test"}, consent_at=1)
+        )
+        session.commit()
+    created = client.post(
+        "/api/conversations",
+        json={"channel": "google_meet_live", "participants_consented": True},
+    )
+    conversation_id = created.json()["id"]
+    audio = io.BytesIO()
+    with wave.open(audio, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16000)
+        wav.writeframes(b"\0\0" * 16000)
+
+    with client.websocket_connect(
+        f"/api/conversations/{conversation_id}/live",
+        headers={"origin": "http://localhost:5173"},
+    ) as websocket:
+        websocket.send_bytes(b"not-a-wave")
+        assert websocket.receive_json()["type"] == "error"
+        assert websocket.receive_json()["type"] == "turn_complete"
+        websocket.send_bytes(audio.getvalue())
+        events = []
+        while "turn_complete" not in events:
+            event = websocket.receive_json()
+            events.append(event["type"])
+            if event["type"] == "audio":
+                assert websocket.receive_bytes() == b"RIFFtest-wave"
+        assert events == [
+            "status",
+            "transcript",
+            "status",
+            "status",
+            "reply",
+            "audio",
+            "turn_complete",
+        ]
+        websocket.send_json({"type": "stop"})
+
+    stored = next(
+        item for item in client.get("/api/conversations").json()
+        if item["id"] == conversation_id
+    )
+    assert stored["status"] == "completed"
+    assert stored["transcript"][-1]["content"].startswith(
+        "I'm an AI assistant speaking with my owner's permission."
+    )
+
+
+def test_live_meeting_websocket_requires_authentication():
+    import pytest
+    from starlette.websockets import WebSocketDisconnect
+
+    client = TestClient(app)
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(
+            "/api/conversations/not-owned/live",
+            headers={"origin": "http://localhost:5173"},
+        ):
+            pass

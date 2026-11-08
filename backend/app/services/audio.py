@@ -21,3 +21,22 @@ async def wav_audio(file: UploadFile, minimum=0.2):
     except (wave.Error, EOFError, ValueError):
         raise HTTPException(422, f"Use mono 16-bit PCM WAV, {minimum}-30 seconds")
     return data
+
+
+def validate_live_wav(data: bytes):
+    if len(data) > 5_000_000:
+        raise HTTPException(413, "Audio exceeds 5 MB")
+    try:
+        with wave.open(io.BytesIO(data)) as audio:
+            duration = audio.getnframes() / audio.getframerate()
+            if (
+                audio.getnchannels() != 1
+                or audio.getsampwidth() != 2
+                or not 0.5 <= duration <= 20
+            ):
+                raise ValueError()
+    except (wave.Error, EOFError, ValueError, ZeroDivisionError):
+        raise HTTPException(
+            422, "Use mono 16-bit PCM WAV audio between 0.5 and 20 seconds"
+        )
+    return data

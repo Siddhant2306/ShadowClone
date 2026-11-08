@@ -2,6 +2,17 @@
 * {
   box-sizing: border-box;
 }
+
+canvas#bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
 body {
   margin: 0;
   background: #0c0f14;
@@ -61,6 +72,8 @@ form {
 .shell {
   display: flex;
   min-height: 100vh;
+  position: relative;
+  z-index: 1;
 }
 aside {
   width: 252px;
@@ -161,6 +174,64 @@ article h2 {
   color: #ffd7db;
   padding: 14px;
   border-radius: 8px;
+}
+.meeting-assistant {
+  max-width: 900px;
+}
+.meeting-notice,
+.meeting-disclosure {
+  background: #171c25;
+  border: 1px solid #6f5da0;
+  border-radius: 14px;
+  padding: 20px;
+  margin: 24px 0;
+}
+.meeting-notice strong {
+  color: #e0d4ff;
+}
+.meeting-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 720px;
+  line-height: 1.6;
+}
+.meeting-consent input {
+  width: auto;
+  margin: 4px 0 0;
+  accent-color: #b9a3ff;
+}
+.meeting-setup {
+  max-width: 720px;
+}
+.meeting-setup b {
+  color: #e0d4ff;
+}
+.meeting-status,
+.meeting-session-id {
+  margin-top: 24px;
+}
+.meeting-transcript {
+  margin-top: 28px;
+}
+.meeting-transcript article {
+  margin-bottom: 12px;
+}
+.button {
+  margin: 6px 8px 6px 0;
+}
+.button-outline {
+  background: #252236;
+  color: #d3c5ff;
+  border: 1px solid #65578d;
+}
+.button-primary {
+  background: #b9a3ff;
+  color: #171222;
+}
+.button-danger {
+  background: #71323b;
+  color: #fff0f1;
 }
 @media (max-width: 800px) {
   aside {

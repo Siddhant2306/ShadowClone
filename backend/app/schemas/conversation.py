@@ -7,7 +7,8 @@ class TurnInput(BaseModel):
 
 
 class ChannelInput(BaseModel):
-    channel: Literal["simulated_call", "simulated_meeting"]
+    channel: Literal["simulated_call", "simulated_meeting", "google_meet_live"]
+    participants_consented: bool = False
 
 
 class Resolution(BaseModel):

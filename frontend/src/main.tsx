@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+// @ts-ignore Vite handles CSS imports at runtime.
 import "./style.css";
 import Voice from "./Voice";
 import Conversations from "./Conversations";
+import MeetingAssistant from "./MeetingAssistant";
+import { init3DModel } from "./3dModel";
+
 async function api(path: string, method = "GET", body?: unknown) {
   const r = await fetch("/api" + path, {
     method,
@@ -32,11 +36,17 @@ function App() {
     [register, setRegister] = useState(true),
     [profile, setProfile] = useState(empty),
     [memories, setMemories] = useState<any[]>([]);
+
+  useEffect(() => {
+    return init3DModel();
+  }, []);
+
   useEffect(() => {
     api("/me")
       .then(setUser)
       .catch(() => {});
   }, []);
+
   useEffect(() => {
     if (user) {
       api("/profile")
@@ -58,6 +68,7 @@ function App() {
       setBusy(false);
     }
   }
+
   return (
     <div className="shell">
       <aside>
@@ -71,6 +82,7 @@ function App() {
               "Memories",
               "Voice identity",
               "Conversations",
+              "Live meeting",
               "Connections",
             ].map((x) => (
               <button
@@ -90,224 +102,266 @@ function App() {
         </footer>
       </aside>
       <main>
-        <header>
-          <span>PERSONAL VOICE WORKSPACE</span>
-          {user && (
-            <button
-              onClick={() =>
-                run(async () => {
-                  await api("/logout", "POST");
-                  setUser(null);
-                })
-              }
-            >
-              Sign out
-            </button>
-          )}
-        </header>
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-        {!user ? (
-          <section className="hero">
-            <div className="orb">◈</div>
-            <p className="eyebrow">MEET YOUR OTHER VOICE</p>
-            <h1>
-              Be represented.
-              <br />
-              <em>Stay in control.</em>
-            </h1>
-            <p>
-              An AI voice representative shaped by your knowledge,
-              <br />
-              communication style and explicit permissions.
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const f = new FormData(e.currentTarget);
-                run(async () =>
-                  setUser(
-                    await api(
-                      "/auth/" + (register ? "register" : "login"),
-                      "POST",
-                      Object.fromEntries(f),
-                    ),
-                  ),
-                );
-              }}
-            >
-              <h2>{register ? "Create your account" : "Welcome back"}</h2>
-              <label>
-                Email
-                <input name="email" type="email" required />
-              </label>
-              <label>
-                Password
-                <input
-                  name="password"
-                  type="password"
-                  minLength={12}
-                  required
-                  placeholder="At least 12 characters"
-                />
-              </label>
-              <button disabled={busy}>
-                {busy
-                  ? "Please wait…"
-                  : register
-                    ? "Create account →"
-                    : "Sign in →"}
-              </button>
+          <header>
+            <span>PERSONAL VOICE WORKSPACE</span>
+            {user && (
               <button
-                type="button"
-                className="quiet"
-                onClick={() => setRegister(!register)}
+                onClick={() =>
+                  run(async () => {
+                    await api("/logout", "POST");
+                    setUser(null);
+                  })
+                }
               >
-                {register
-                  ? "Already have an account? Sign in"
-                  : "Create an account"}
+                Sign out
               </button>
-            </form>
-          </section>
-        ) : page === "Overview" ? (
-          <>
-            <p className="eyebrow">YOUR SHADOW, AT A GLANCE</p>
-            <h1>
-              Hello{profile.display_name ? ", " + profile.display_name : ""}.
-            </h1>
-            <p>Build the knowledge and boundaries behind your voice.</p>
-            <div className="cards">
-              <article>
-                <small>SHADOW PROFILE</small>
-                <h2>
-                  {profile.display_name ? "Taking shape" : "Start with you"}
-                </h2>
-                <p>Define how your representative communicates.</p>
-                <button onClick={() => setPage("Shadow profile")}>
-                  Edit profile →
-                </button>
-              </article>
-              <article>
-                <small>CONFIRMED MEMORIES</small>
-                <h2>{memories.length} memories</h2>
-                <p>Facts and preferences you explicitly provide.</p>
-                <button onClick={() => setPage("Memories")}>
-                  Manage knowledge →
-                </button>
-              </article>
-            </div>
-            <article>
-              <h2>Build your voice and try a text conversation</h2>
+            )}
+          </header>
+          {error && (
+            <p role="alert" className="error">
+              {error}
+            </p>
+          )}
+          {!user ? (
+            <section className="hero">
+              <p className="eyebrow">MEET YOUR OTHER VOICE</p>
+              <h1>
+                Be represented.
+                <br />
+                <em>Stay in control.</em>
+              </h1>
               <p>
-                Enrol your voice in Voice identity. The Conversations workspace
-                supports text simulations with owner approval. Live microphone
-                conversations are not yet available.
+                An AI voice representative shaped by your knowledge,
+                <br />
+                communication style and explicit permissions.
               </p>
-            </article>
-          </>
-        ) : page === "Conversations" ? (
-          <Conversations />
-        ) : page === "Voice identity" ? (
-          <Voice />
-        ) : page === "Shadow profile" ? (
-          <>
-            <h1>Make it yours.</h1>
-            <p>Only share information you want your Shadow to know.</p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                run(async () => {
-                  await api("/profile", "PUT", profile);
-                  setPage("Overview");
-                });
-              }}
-            >
-              {Object.entries(profile).map(([key, value]) => (
-                <label key={key}>
-                  {key.replaceAll("_", " ")}
-                  <textarea
-                    required={key === "display_name"}
-                    value={value}
-                    onChange={(e) =>
-                      setProfile({ ...profile, [key]: e.target.value })
-                    }
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const f = new FormData(e.currentTarget);
+                  run(async () =>
+                    setUser(
+                      await api(
+                        "/auth/" + (register ? "register" : "login"),
+                        "POST",
+                        Object.fromEntries(f),
+                      ),
+                    ),
+                  );
+                }}
+              >
+                <h2>{register ? "Create your account" : "Welcome back"}</h2>
+                <label>
+                  Email
+                  <input name="email" type="email" required />
+                </label>
+                <label>
+                  Password
+                  <input
+                    name="password"
+                    type="password"
+                    minLength={12}
+                    required
+                    placeholder="At least 12 characters"
                   />
                 </label>
-              ))}
-              <button disabled={busy}>Save profile</button>
-            </form>
-          </>
-        ) : page === "Memories" ? (
-          <>
-            <h1>A little more context.</h1>
-            <p>
-              Your confirmed knowledge, always editable through deletion and
-              replacement.
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const f = new FormData(e.currentTarget);
-                run(async () => {
-                  await api("/memories", "POST", Object.fromEntries(f));
-                  setMemories(await api("/memories"));
-                });
-              }}
-            >
-              <label>
-                Memory
-                <textarea name="content" required maxLength={4000} />
-              </label>
-              <label>
-                Category
-                <select name="category">
-                  {["personal_fact", "preference", "knowledge", "decision"].map(
-                    (c) => (
-                      <option key={c}>{c}</option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <button disabled={busy}>Save memory</button>
-            </form>
-            {memories.map((m) => (
-              <article key={m.id}>
-                <small>{m.category} · confirmed by you</small>
-                <p>{m.content}</p>
-                <button
-                  onClick={() =>
-                    run(async () => {
-                      await api("/memories/" + m.id, "DELETE");
-                      setMemories(await api("/memories"));
-                    })
-                  }
-                >
-                  Delete
+                <button disabled={busy}>
+                  {busy
+                    ? "Please wait…"
+                    : register
+                      ? "Create account →"
+                      : "Sign in →"}
                 </button>
+                <button
+                  type="button"
+                  className="quiet"
+                  onClick={() => setRegister(!register)}
+                >
+                  {register
+                    ? "Already have an account? Sign in"
+                    : "Create an account"}
+                </button>
+              </form>
+            </section>
+          ) : page === "Overview" ? (
+            <>
+              <p className="eyebrow">YOUR SHADOW, AT A GLANCE</p>
+              <h1>
+                Hello{profile.display_name ? `, ${profile.display_name}` : ""}.
+              </h1>
+              <p>Build the knowledge and boundaries behind your voice.</p>
+              <div className="dashboard-grid">
+                <article className="dashboard-card">
+                  <small>SHADOW PROFILE</small>
+                  <h2>
+                    {profile.display_name ? "Taking shape" : "Start with you"}
+                  </h2>
+                  <p>Define how your representative communicates.</p>
+                  <button
+                    className="text-link"
+                    onClick={() => setPage("Shadow profile")}
+                  >
+                    Edit profile <span aria-hidden="true">↗</span>
+                  </button>
+                </article>
+                <article className="dashboard-card">
+                  <small>CONFIRMED MEMORIES</small>
+                  <h2>{memories.length} memories</h2>
+                  <p>Facts and preferences you explicitly provide.</p>
+                  <button
+                    className="text-link"
+                    onClick={() => setPage("Memories")}
+                  >
+                    Manage knowledge <span aria-hidden="true">↗</span>
+                  </button>
+                </article>
+                <article className="dashboard-card dashboard-card-wide">
+                  <small>YOUR NEXT STEP</small>
+                  <h2>Build your voice and try a text conversation</h2>
+                  <p>
+                    Voice enrolment requires your consent. Conversations are
+                    simulations, and every proposed response requires your
+                    approval.
+                  </p>
+                  <div className="card-actions">
+                    <button
+                      className="button button-outline"
+                      onClick={() => setPage("Voice identity")}
+                    >
+                      Voice identity
+                    </button>
+                    <button
+                      className="button button-primary"
+                      onClick={() => setPage("Conversations")}
+                    >
+                      Conversations
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </>
+          ) : page === "Conversations" ? (
+            <Conversations />
+          ) : page === "Live meeting" ? (
+            <MeetingAssistant />
+          ) : page === "Voice identity" ? (
+            <Voice />
+          ) : page === "Connections" ? (
+            <>
+              <p className="eyebrow">SERVICE CONFIGURATION</p>
+              <h1>Your connections.</h1>
+              <article className="dashboard-card">
+                <h2>Voice synthesis</h2>
+                <p>
+                  Configure the backend voice provider, then enrol and test
+                  your voice in Voice identity.
+                </p>
               </article>
-            ))}
-          </>
-        ) : (
-          <>
-            <h1>Connections.</h1>
-            <article>
-              <h2>Gnani voice · Configuration required</h2>
+              <article className="dashboard-card">
+                <h2>Calls and meetings</h2>
+                <p>
+                  No telephony or meeting platform is connected. Conversation
+                  sessions are simulations.
+                </p>
+              </article>
+            </>
+          ) : page === "Shadow profile" ? (
+            <>
+              <p className="eyebrow">A PERSONAL BLUEPRINT</p>
+              <h1>Make it yours.</h1>
+              <p>Only share information you want your Shadow to know.</p>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  run(async () => {
+                    await api("/profile", "PUT", profile);
+                    setPage("Overview");
+                  });
+                }}
+              >
+                {Object.entries(profile).map(([key, value]) => (
+                  <label key={key}>
+                    {key.replaceAll("_", " ")}
+                    <textarea
+                      required={key === "display_name"}
+                      value={value}
+                      onChange={(event) =>
+                        setProfile({ ...profile, [key]: event.target.value })
+                      }
+                    />
+                  </label>
+                ))}
+                <button className="button button-primary" disabled={busy}>
+                  {busy ? "Saving…" : "Save profile"}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <p className="eyebrow">A PRIVATE, EDITABLE ARCHIVE</p>
+              <h1>Your knowledge.</h1>
               <p>
-                Configure the backend API key, then enrol and test your voice in
-                Voice identity.
+                Keep confirmed facts and preferences. Add or remove them
+                whenever you choose.
               </p>
-            </article>
-            <article>
-              <h2>Calls & meetings · Not connected</h2>
-              <p>No telephony or meeting platform is connected.</p>
-            </article>
-          </>
-        )}
-      </main>
-    </div>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const formElement = event.currentTarget;
+                  const form = new FormData(formElement);
+                  run(async () => {
+                    await api("/memories", "POST", Object.fromEntries(form));
+                    setMemories(await api("/memories"));
+                    formElement.reset();
+                  });
+                }}
+              >
+                <label>
+                  Memory
+                  <textarea name="content" required maxLength={4000} />
+                </label>
+                <label>
+                  Category
+                  <select name="category">
+                    {[
+                      "personal_fact",
+                      "preference",
+                      "knowledge",
+                      "decision",
+                    ].map((category) => (
+                      <option key={category} value={category}>
+                        {category.replaceAll("_", " ")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button className="button button-primary" disabled={busy}>
+                  {busy ? "Saving…" : "Save memory"}
+                </button>
+              </form>
+              {memories.map((memory) => (
+                <article className="dashboard-card memory-card" key={memory.id}>
+                  <small>{memory.category.replaceAll("_", " ")} · CONFIRMED</small>
+                  <p>{memory.content}</p>
+                  <button
+                    className="text-link danger-link"
+                    disabled={busy}
+                    onClick={() =>
+                      run(async () => {
+                        await api(`/memories/${memory.id}`, "DELETE");
+                        setMemories(await api("/memories"));
+                      })
+                    }
+                  >
+                    Delete memory
+                  </button>
+                </article>
+              ))}
+            </>
+          )}
+        </main>
+      </div>
   );
 }
+
 createRoot(document.getElementById("root")!).render(<App />);
