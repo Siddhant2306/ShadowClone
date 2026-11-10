@@ -13,6 +13,9 @@ import OverviewPage from "./components/OverviewPage";
 import ShadowProfilePage from "./components/ShadowProfilePage";
 import Sidebar from "./components/Sidebar";
 import WorkspaceHeader from "./components/WorkspaceHeader";
+import LandingPage from "./components/LandingPage";
+
+type AuthMode = "register" | "login";
 
 async function api(path: string, method = "GET", body?: unknown) {
   const response = await fetch("/api" + path, {
@@ -44,6 +47,7 @@ function App() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [register, setRegister] = useState(true);
+  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const [profile, setProfile] = useState(emptyProfile);
   const [memories, setMemories] = useState<any[]>([]);
 
@@ -130,29 +134,29 @@ function App() {
     );
   }
 
-  return (
-    <div className="shell">
-      <Sidebar hasUser={Boolean(user)} page={page} onNavigate={setPage} />
-      <main>
-        <WorkspaceHeader
-          hasUser={Boolean(user)}
-          onSignOut={() =>
-            run(async () => {
-              await api("/logout", "POST");
-              setUser(null);
-            })
-          }
+  if (!user) {
+    return (
+      <>
+        <LandingPage
+          onAuth={(mode) => {
+            setRegister(mode === "register");
+            setError("");
+            setAuthMode(mode);
+          }}
         />
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-        {!user ? (
+        {authMode && (
           <LoginPage
             register={register}
             busy={busy}
-            onToggleMode={() => setRegister(!register)}
+            error={error}
+            onClose={() => {
+              setAuthMode(null);
+              setError("");
+            }}
+            onToggleMode={() => {
+              setError("");
+              setRegister((current) => !current);
+            }}
             onSubmit={(fields) =>
               run(async () =>
                 setUser(
@@ -165,10 +169,34 @@ function App() {
               )
             }
           />
-        ) : (
-          renderPage()
         )}
-      </main>
+      </>
+    );
+  }
+
+  return (
+    <div className="workspace-shell">
+      <Sidebar hasUser page={page} onNavigate={setPage} />
+      <div className="workspace-main">
+        <WorkspaceHeader
+          hasUser
+          page={page}
+          onSignOut={() =>
+            run(async () => {
+              await api("/logout", "POST");
+              setUser(null);
+            })
+          }
+        />
+        <main className="workspace-content">
+          {error && (
+            <p role="alert" className="error">
+              {error}
+            </p>
+          )}
+          {renderPage()}
+        </main>
+      </div>
     </div>
   );
 }

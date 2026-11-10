@@ -76,13 +76,48 @@ export default function Conversations() {
     }
   }
   return (
-    <>
-      <h1>Conversation workspace.</h1>
-      <p>
-        Browser voice conversation · Every response needs your approval · No
-        real phone or meeting connection
-      </p>
-      <p role="status">{stage}</p>
+    <section className="conversations-page">
+      <header className="workspace-page-intro">
+        <p className="eyebrow">PRIVATE, APPROVAL-LED SIMULATIONS</p>
+        <h1>Conversation workspace.</h1>
+        <p>
+          Explore how your Shadow responds in a controlled simulation. Every
+          proposed reply is yours to review; no real call or meeting is
+          connected.
+        </p>
+      </header>
+      <div className="conversations-toolbar">
+        <div>
+          <small>START A SIMULATION</small>
+          <span>Choose a scenario to begin.</span>
+        </div>
+        <div className="conversation-create-actions">
+          <button
+            className="button button-outline"
+            disabled={busy}
+            onClick={() =>
+              act(() => request("", "POST", { channel: "simulated_call" }))
+            }
+          >
+            Simulate call <span aria-hidden="true">↗</span>
+          </button>
+          <button
+            className="button button-outline"
+            disabled={busy}
+            onClick={() =>
+              act(() => request("", "POST", { channel: "simulated_meeting" }))
+            }
+          >
+            Simulate meeting <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+      </div>
+      {stage && (
+        <p className="conversation-stage" role="status" aria-live="polite">
+          <i aria-hidden="true" />
+          {stage}
+        </p>
+      )}
       {speechUrl && (
         <audio
           ref={player}
@@ -98,125 +133,125 @@ export default function Conversations() {
           {error}
         </p>
       )}
-      <button
-        disabled={busy}
-        onClick={() =>
-          act(() => request("", "POST", { channel: "simulated_call" }))
-        }
-      >
-        Simulate call
-      </button>{" "}
-      <button
-        disabled={busy}
-        onClick={() =>
-          act(() => request("", "POST", { channel: "simulated_meeting" }))
-        }
-      >
-        Simulate meeting
-      </button>
-      {rows.map((r) => (
-        <article key={r.id} style={{ marginTop: 24 }}>
-          <small>
-            {r.channel} · {r.status}
-          </small>
-          {r.transcript.map((m: any, i: number) => (
-            <p key={i}>
-              <strong>{m.role}: </strong>
-              {m.content}
-            </p>
-          ))}
-          {r.status === "listening" && (
-            <VoiceRecorder
-              minimum={0.5}
-              disabled={busy || recordingBusy}
-              onBusy={(value) => {
-                setRecordingBusy(value);
-                if (value) player.current?.pause();
-              }}
-              onRecorded={(file) => {
-                if (file) act(() => sendAudio(r.id, file));
-              }}
-            />
-          )}
-          {r.status === "listening" && (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const text = new FormData(e.currentTarget).get("text");
-                act(() => request("/" + r.id + "/turn", "POST", { text }));
-              }}
-            >
-              <label>
-                Participant message
-                <input name="text" required maxLength={4000} />
-              </label>
-              <button disabled={busy}>Generate proposed response</button>
-            </form>
-          )}
-          {r.status === "waiting_for_approval" && (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const text = new FormData(e.currentTarget).get("text");
-                act(async () => {
-                  await request("/" + r.id + "/resolve", "POST", {
-                    approve: true,
-                    text,
-                  });
-                  await speak(r.id);
-                });
-              }}
-            >
-              <label>
-                Review and edit
-                <textarea
-                  name="text"
-                  required
-                  defaultValue={r.transcript.at(-1).content}
-                />
-              </label>
-              <button disabled={busy || recordingBusy}>Approve & speak</button>{" "}
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  act(() =>
-                    request("/" + r.id + "/resolve", "POST", {
-                      approve: false,
-                      text: "",
-                    }),
-                  )
-                }
-              >
-                Reject
-              </button>
-            </form>
-          )}
-          {r.status === "listening" &&
-            r.transcript.at(-1)?.role === "assistant" && (
-              <button
+      <div className="conversation-session-list">
+        {rows.map((r) => (
+          <article className="conversation-session" key={r.id}>
+            <header className="conversation-session-heading">
+              <div>
+                <small>
+                  SIMULATED {r.channel.replaceAll("_", " ").toUpperCase()}
+                </small>
+                <span>{r.status.replaceAll("_", " ")}</span>
+              </div>
+              <span className="conversation-session-id">
+                SESSION / {String(r.id).slice(0, 8)}
+              </span>
+            </header>
+            <div className="conversation-transcript">
+              {r.transcript.map((m: any, i: number) => (
+                <p className={`transcript-line transcript-${m.role}`} key={i}>
+                  <strong>
+                    {m.role === "assistant" ? "YOUR SHADOW" : "PARTICIPANT"}
+                  </strong>
+                  <span>{m.content}</span>
+                </p>
+              ))}
+            </div>
+            {r.status === "listening" && (
+              <VoiceRecorder
+                minimum={0.5}
                 disabled={busy || recordingBusy}
-                onClick={() => act(() => speak(r.id))}
-              >
-                Speak latest reply
-              </button>
+                onBusy={(value) => {
+                  setRecordingBusy(value);
+                  if (value) player.current?.pause();
+                }}
+                onRecorded={(file) => {
+                  if (file) act(() => sendAudio(r.id, file));
+                }}
+              />
             )}
-          {r.status !== "completed" && (
+            {r.status === "listening" && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const text = new FormData(e.currentTarget).get("text");
+                  act(() => request("/" + r.id + "/turn", "POST", { text }));
+                }}
+              >
+                <label>
+                  Participant message
+                  <input name="text" required maxLength={4000} />
+                </label>
+                <button disabled={busy}>Generate proposed response</button>
+              </form>
+            )}
+            {r.status === "waiting_for_approval" && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const text = new FormData(e.currentTarget).get("text");
+                  act(async () => {
+                    await request("/" + r.id + "/resolve", "POST", {
+                      approve: true,
+                      text,
+                    });
+                    await speak(r.id);
+                  });
+                }}
+              >
+                <label>
+                  Review and edit
+                  <textarea
+                    name="text"
+                    required
+                    defaultValue={r.transcript.at(-1).content}
+                  />
+                </label>
+                <button disabled={busy || recordingBusy}>
+                  Approve & speak
+                </button>{" "}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    act(() =>
+                      request("/" + r.id + "/resolve", "POST", {
+                        approve: false,
+                        text: "",
+                      }),
+                    )
+                  }
+                >
+                  Reject
+                </button>
+              </form>
+            )}
+            {r.status === "listening" &&
+              r.transcript.at(-1)?.role === "assistant" && (
+                <button
+                  disabled={busy || recordingBusy}
+                  onClick={() => act(() => speak(r.id))}
+                >
+                  Speak latest reply
+                </button>
+              )}
+            {r.status !== "completed" && (
+              <button
+                disabled={busy}
+                onClick={() => act(() => request("/" + r.id + "/end", "POST"))}
+              >
+                End conversation
+              </button>
+            )}{" "}
             <button
               disabled={busy}
-              onClick={() => act(() => request("/" + r.id + "/end", "POST"))}
+              onClick={() => act(() => request("/" + r.id, "DELETE"))}
             >
-              End conversation
+              Delete transcript
             </button>
-          )}{" "}
-          <button
-            disabled={busy}
-            onClick={() => act(() => request("/" + r.id, "DELETE"))}
-          >
-            Delete transcript
-          </button>
-        </article>
-      ))}
-    </>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }

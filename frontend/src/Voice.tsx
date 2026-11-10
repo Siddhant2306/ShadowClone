@@ -46,13 +46,18 @@ export default function Voice() {
     }
   }
   return (
-    <>
-      <h1>Your voice identity.</h1>
-      <p>Status: {status}</p>
-      <p>
-        Record your voice below or upload 5–30 seconds of mono 16-bit PCM WAV
-        audio (maximum 5 MB). Reference audio is processed temporarily; only the
-        returned voice embedding is saved.
+    <section className="voice-identity-page">
+      <header className="workspace-page-intro">
+        <p className="eyebrow">YOUR VOICE, YOUR CONTROL</p>
+        <h1>Your voice identity.</h1>
+        <p>
+          Enroll a voice representation with explicit consent. Reference audio
+          is processed temporarily; only the returned voice embedding is saved.
+        </p>
+      </header>
+      <p className="voice-status" role="status">
+        <span>PROVIDER STATUS</span>
+        {status}
       </p>
       {error && (
         <p role="alert" className="error">
@@ -60,6 +65,7 @@ export default function Voice() {
         </p>
       )}
       <form
+        className="voice-enroll-form"
         onSubmit={(e) => {
           e.preventDefault();
           if (recordingBusy) return;
@@ -115,32 +121,38 @@ export default function Voice() {
           representation.
         </label>
         <button
+          className="button button-primary"
           disabled={busy || recordingBusy || (mode === "record" && !recording)}
         >
           {busy ? "Processing…" : "Enrol voice"}
         </button>
       </form>
-      <button
-        disabled={busy || recordingBusy}
-        onClick={() => call("/test", "POST")}
-      >
-        Test cloned voice
-      </button>{" "}
-      <button
-        disabled={busy || recordingBusy}
-        onClick={() => call("", "DELETE")}
-      >
-        Revoke & delete local voice
-      </button>
+      <div className="voice-management">
+        <button
+          className="button button-outline"
+          disabled={busy || recordingBusy}
+          onClick={() => call("/test", "POST")}
+        >
+          Test cloned voice
+        </button>
+        <button
+          className="button button-danger"
+          disabled={busy || recordingBusy}
+          onClick={() => call("", "DELETE")}
+        >
+          Revoke & delete local voice
+        </button>
+      </div>
       {url && (
-        <p>
+        <div className="voice-preview">
+          <span>VOICE PREVIEW</span>
           <audio controls src={url} />
-        </p>
+        </div>
       )}
-      <p>
+      <p className="voice-retention-note">
         Revocation deletes the saved embedding and prevents further synthesis in
         this app. Provider-side retention is governed by Gnani.
       </p>
-    </>
+    </section>
   );
 }
