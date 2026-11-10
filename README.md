@@ -1,6 +1,6 @@
 # Running Shadow Clone
 
-[Read the one-page pitch](PITCH.md) for a quick overview of what Shadow Clone does and how it works.
+[Read the one-page pitch for the Great Indian AI Internship Challenge](PITCH.md).
 
 ## Database: Supabase only
 The application uses DATABASE_URL from backend/.env. There is no local database fallback. The configured Supabase connection uses TLS. Docker is not required for the database; compose.yaml is a legacy local-development configuration and is not used by the application.
