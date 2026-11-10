@@ -216,14 +216,19 @@ def test_live_meeting_websocket_uses_ai_disclosure(monkeypatch):
     import io
     import wave
     from app.models.auth import User
+    from app.models.profile import Profile
     from app.models.voice import Voice
     from app.reasoning import Reply
 
     async def fake_transcribe(audio):
         return "What is the project status?"
 
-    async def fake_reason(context):
+    async def fake_reason(context, on_first_token=None):
         assert context["channel"] == "google_meet_live"
+        assert context["owner"]["name"] == "Siddhant"
+        assert context["meeting_context"] == (
+            "The first version is due Friday. Do not promise dates."
+        )
         return Reply(
             response_text="The project is on track.",
             confidence=1,
@@ -232,7 +237,7 @@ def test_live_meeting_websocket_uses_ai_disclosure(monkeypatch):
         )
 
     async def fake_synthesize(text, embedding):
-        assert text.startswith("I'm an AI assistant speaking with my owner's permission.")
+        assert text == "The project is on track."
         return b"RIFFtest-wave"
 
     monkeypatch.setattr("app.routes.conversations.gnani.transcribe", fake_transcribe)
@@ -249,12 +254,27 @@ def test_live_meeting_websocket_uses_ai_disclosure(monkeypatch):
         session.add(
             Voice(user_id=user.id, embedding={"embedding": "test"}, consent_at=1)
         )
+        session.add(
+            Profile(
+                user_id=user.id,
+                data={
+                    "display_name": "Siddhant",
+                    "communication_style": "Concise",
+                    "preferred_languages": "English, Hinglish",
+                },
+            )
+        )
         session.commit()
     created = client.post(
         "/api/conversations",
-        json={"channel": "google_meet_live", "participants_consented": True},
+        json={
+            "channel": "google_meet_live",
+            "participants_consented": True,
+            "meeting_context": "The first version is due Friday.",
+        },
     )
     conversation_id = created.json()["id"]
+    assert "Siddhant ka AI assistant" in created.json()["introduction"]
     audio = io.BytesIO()
     with wave.open(audio, "wb") as wav:
         wav.setnchannels(1)
@@ -266,6 +286,13 @@ def test_live_meeting_websocket_uses_ai_disclosure(monkeypatch):
         f"/api/conversations/{conversation_id}/live",
         headers={"origin": "http://localhost:5173"},
     ) as websocket:
+        updated_context = "The first version is due Friday. Do not promise dates."
+        assert client.put(
+            f"/api/conversations/{conversation_id}/context",
+            json={"content": updated_context},
+        ).status_code == 200
+        websocket.send_json({"type": "refresh_context"})
+        assert websocket.receive_json()["type"] == "context_refreshed"
         websocket.send_bytes(b"not-a-wave")
         assert websocket.receive_json()["type"] == "error"
         assert websocket.receive_json()["type"] == "turn_complete"
@@ -292,9 +319,7 @@ def test_live_meeting_websocket_uses_ai_disclosure(monkeypatch):
         if item["id"] == conversation_id
     )
     assert stored["status"] == "completed"
-    assert stored["transcript"][-1]["content"].startswith(
-        "I'm an AI assistant speaking with my owner's permission."
-    )
+    assert stored["transcript"][-1]["content"] == "The project is on track."
 
 
 def test_live_meeting_websocket_requires_authentication():

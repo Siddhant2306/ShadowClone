@@ -75,6 +75,8 @@ export default function MeetingAssistant() {
   const [status, setStatus] = useState("Waiting for participant consent.");
   const [error, setError] = useState("");
   const [conversationId, setConversationId] = useState("");
+  const [meetingContext, setMeetingContext] = useState("");
+  const [savedMeetingContext, setSavedMeetingContext] = useState("");
   const [introUrl, setIntroUrl] = useState("");
   const [introPending, setIntroPending] = useState(false);
   const [active, setActive] = useState(false);
@@ -444,17 +446,22 @@ export default function MeetingAssistant() {
         body: JSON.stringify({
           channel: "google_meet_live",
           participants_consented: true,
+          meeting_context: meetingContext,
         }),
       });
       if (!created.ok) throw await responseError(created, "Could not create the meeting session.");
-      const { id } = (await created.json()) as { id: string };
+      const {
+        id,
+        introduction,
+      } = (await created.json()) as { id: string; introduction: string };
       session.current.id = id;
       conversationIdRef.current = id;
       setConversationId(id);
+      setSavedMeetingContext(meetingContext.trim());
       setMessages([
         {
           role: "assistant",
-          text: "I'm an AI assistant speaking with my owner's permission.",
+          text: introduction,
         },
       ]);
 
@@ -478,6 +485,36 @@ export default function MeetingAssistant() {
       setStatus("Meeting assistant is stopped.");
     } finally {
       setStarting(false);
+    }
+  }
+
+  async function saveMeetingContext() {
+    const socket = session.current.socket;
+    if (active && socket?.readyState !== WebSocket.OPEN) {
+      setError("The live connection is not ready to refresh meeting context.");
+      return;
+    }
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}/context`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: meetingContext }),
+      });
+      if (!response.ok) {
+        throw await responseError(response, "Could not save meeting context.");
+      }
+      setSavedMeetingContext(meetingContext.trim());
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "refresh_context" }));
+      }
+      setStatus(
+        socket?.readyState === WebSocket.OPEN
+          ? "Meeting context saved and refreshed."
+          : "Meeting context saved for this session.",
+      );
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not save meeting context.");
     }
   }
 
@@ -510,13 +547,37 @@ export default function MeetingAssistant() {
         <p>
           Before capture starts, every participant must know an AI assistant
           may listen and respond in the enrolled voice. The assistant speaks an
-          AI disclosure at the beginning and before every reply. Stop sharing
+          AI disclosure once at the beginning. Stop sharing
           or use the stop button at any time. Shared speech is sent to the
           configured transcription provider; recognized text and replies are
           saved in this account's conversation history. Reasoning and voice
           synthesis use the providers configured by the account owner.
         </p>
       </article>
+
+      <label>
+        Meeting context (optional)
+        <textarea
+          value={meetingContext}
+          maxLength={8000}
+          placeholder="Share the purpose, previous discussion, expected topics, your position, and anything to avoid."
+          onChange={(event) => setMeetingContext(event.target.value)}
+        />
+      </label>
+      <p className="meeting-setup">
+        This note is saved with the meeting and loaded once when the live
+        connection starts. It is passed directly as context; no separate
+        extraction model request is made.
+      </p>
+      {conversationId && meetingContext.trim() !== savedMeetingContext && (
+        <button
+          type="button"
+          className="button button-outline"
+          onClick={() => void saveMeetingContext()}
+        >
+          Save and refresh context
+        </button>
+      )}
 
       <label className="meeting-consent">
         <input
