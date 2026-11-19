@@ -1,7 +1,10 @@
+import { installDebugFetch } from "./debug";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 // @ts-ignore Vite handles CSS imports at runtime.
 import "./style.css";
+// @ts-ignore Vite handles the design theme stylesheet.
+import "./twilight.css";
 import Voice from "./Voice";
 import Conversations from "./Conversations";
 import MeetingAssistant from "./MeetingAssistant";
@@ -14,6 +17,8 @@ import ShadowProfilePage from "./components/ShadowProfilePage";
 import Sidebar from "./components/Sidebar";
 import WorkspaceHeader from "./components/WorkspaceHeader";
 import LandingPage from "./components/LandingPage";
+
+installDebugFetch();
 
 type AuthMode = "register" | "login";
 

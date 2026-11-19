@@ -1,3 +1,4 @@
+import { debugEvent } from "./debug";
 import { useEffect, useRef, useState } from "react";
 
 type CaptureSession = {
@@ -205,6 +206,7 @@ export default function MeetingAssistant() {
   }
 
   async function startLiveCapture() {
+    debugEvent("live.capture.start");
     const current = session.current;
     if (!current.id || !current.stream || stopRequested.current) return;
     const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -253,6 +255,7 @@ export default function MeetingAssistant() {
           offset += frame.length;
         }
         if (pendingAudio.current.length < 3) {
+          debugEvent("live.utterance.queued", { durationSeconds: totalSamples / context.sampleRate, queueLength: pendingAudio.current.length });
           pendingAudio.current.push(wavFromFloat(samples, context.sampleRate));
           sendNextUtterance();
         } else {
@@ -279,7 +282,7 @@ export default function MeetingAssistant() {
         utterance.push(frame);
         sampleCount += frame.length;
         quietFrames = voiceDetected ? 0 : quietFrames + 1;
-        if (quietFrames >= 9 || sampleCount >= context.sampleRate * 14) {
+        if (quietFrames * frame.length >= context.sampleRate * 1.2 || sampleCount >= context.sampleRate * 28) {
           sendUtterance();
         }
       } else if (voiceDetected) {
@@ -325,6 +328,7 @@ export default function MeetingAssistant() {
   }
 
   function handleSocketMessage(event: MessageEvent) {
+    debugEvent("live.message.received", { binary: typeof event.data !== "string", bytes: event.data instanceof Blob ? event.data.size : undefined });
     if (typeof event.data !== "string") {
       if (expectingAudio.current && event.data instanceof ArrayBuffer) {
         expectingAudio.current = false;
@@ -372,6 +376,7 @@ export default function MeetingAssistant() {
   }
 
   async function playNextReply() {
+    debugEvent("live.reply.play");
     const player = replyPlayer.current as RoutableAudioElement | null;
     if (!player || playingReply.current || replyQueue.current.length === 0) return;
     playingReply.current = replyQueue.current.shift()!;
@@ -402,6 +407,7 @@ export default function MeetingAssistant() {
   }
 
   async function startMeeting() {
+    debugEvent("live.meeting.prepare");
     setError("");
     setMessages([]);
     stopRequested.current = false;
@@ -519,6 +525,7 @@ export default function MeetingAssistant() {
   }
 
   async function playDisclosure() {
+    debugEvent("live.disclosure.play");
     const player = introPlayer.current as RoutableAudioElement | null;
     if (!player || !outputDevice) return;
     try {
@@ -644,6 +651,7 @@ export default function MeetingAssistant() {
             controls
             src={introUrl}
             onEnded={() => {
+              debugEvent("live.disclosure.ended");
               setIntroPending(false);
               if (introUrl) URL.revokeObjectURL(introUrl);
               setIntroUrl("");
