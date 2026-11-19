@@ -7,10 +7,12 @@ from sqlalchemy.orm import Session
 from app.database import database
 from app.config import ALLOWED_ORIGINS
 from app.models.auth import LoginSession
+from app.diagnostics import emit
 
 
 def validate_origin(request: Request):
     if request.headers.get("origin") not in ALLOWED_ORIGINS:
+        emit("auth.origin.rejected")
         raise HTTPException(403, "Invalid request origin")
 
 
@@ -19,8 +21,11 @@ def account(request: Request, db: Session = Depends(database)):
         validate_origin(request)
     token = request.cookies.get("shadow_session", "")
     if not token:
+        emit("auth.session.rejected")
         raise HTTPException(401, "Please sign in")
     session = db.get(LoginSession, hashlib.sha256(token.encode()).hexdigest())
     if not session or session.expires < time.time():
+        emit("auth.session.rejected")
         raise HTTPException(401, "Please sign in")
+    emit("auth.session.accepted", user_id=session.user_id)
     return session.user_id

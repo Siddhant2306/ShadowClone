@@ -5,3 +5,6 @@ __pycache__/
 .pytest_cache/
 .env
 *.db
+
+# Local debug traces can contain personal conversation data.
+backend/logs/

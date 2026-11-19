@@ -3,6 +3,7 @@
 import io
 import wave
 from fastapi import HTTPException, UploadFile
+from app.diagnostics import emit
 
 
 async def wav_audio(file: UploadFile, minimum=0.2):
@@ -20,6 +21,13 @@ async def wav_audio(file: UploadFile, minimum=0.2):
                 raise ValueError()
     except (wave.Error, EOFError, ValueError):
         raise HTTPException(422, f"Use mono 16-bit PCM WAV, {minimum}-30 seconds")
+    emit(
+        "audio.validated",
+        bytes=len(data),
+        duration_seconds=duration,
+        channels=1,
+        sample_width=2,
+    )
     return data
 
 
@@ -39,4 +47,11 @@ def validate_live_wav(data: bytes):
         raise HTTPException(
             422, "Use mono 16-bit PCM WAV audio between 0.5 and 20 seconds"
         )
+    emit(
+        "audio.validated",
+        bytes=len(data),
+        duration_seconds=duration,
+        channels=1,
+        sample_width=2,
+    )
     return data

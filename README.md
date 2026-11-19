@@ -28,7 +28,9 @@ npm.cmd run dev
 Open http://localhost:5173 or http://127.0.0.1:5173.
 
 ## Providers
-Keep Ollama running. LLM_PROVIDER=ollama, LLM_MODEL=qwen3:4b and OLLAMA_BASE_URL=http://127.0.0.1:11434 use the installed local model; no LLM_API_KEY is required. Anthropic remains an optional provider. GNANI_API_KEY enables the implemented voice adapters. Restart the backend after changing .env.
+Reasoning uses local Ollama. Keep Ollama running with `LLM_PROVIDER=ollama`, `LLM_MODEL=qwen3:4b` and `OLLAMA_BASE_URL=http://127.0.0.1:11434` in `backend/.env`. Restart the backend after changing settings. Gnani continues to handle voice using `GNANI_API_KEY`. Anthropic remains an optional provider. The DeepSeek connection has been removed.
+
+The fixed system prompt defines the assistant role, prioritizes the current question, mirrors the speaker’s language, and requires approval for unauthorized commitments. Model instructions reduce mistakes but do not guarantee answer accuracy.
 
 ## Current capabilities and limits
 Accounts, profiles, confirmed memories, voice enrolment/test/revocation, and persisted text conversations with mandatory owner approval are implemented. Voice uploads must be mono 16-bit PCM WAV, 5–30 seconds, maximum 5 MB. Real Gnani calls still need verification.
@@ -37,3 +39,6 @@ The Live meeting page supports a consent-gated Google Meet browser-tab workflow.
 
 ## Tests
 From backend: `..\.venv\Scripts\python.exe -m pytest -q`. Automated tests use isolated SQLite, not Supabase. Frontend build: `npm.cmd run build` from frontend.
+
+## Debugging the full flow
+Detailed backend tracing is configured in `backend/.env`. See [the debug guide](backend/docs/debugging.md) for event meanings, token counts, redaction, browser console traces and live log commands. Events go to the terminal and `backend/logs/debug.jsonl`. Restart the backend to activate changes.

@@ -8,6 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.reasoning import reason, system_prompt
+from app.hard_prompt import HARD_PROMPT
 
 
 class FakeStream:
@@ -57,6 +58,9 @@ def test_ollama_stream_schema_and_no_cloud_key(monkeypatch):
         assert payload["format"]["type"] == "object"
         assert payload["stream"] is True
         assert payload["think"] is False
+        assert payload["messages"][0]["role"] == "system"
+        assert payload["messages"][0]["content"].startswith(HARD_PROMPT)
+        assert "JSON schema:" in payload["messages"][0]["content"]
         return FakeStream(ollama_lines(content))
 
     monkeypatch.setattr(httpx.AsyncClient, "stream", stream)
@@ -134,5 +138,7 @@ def test_anthropic_stream_separates_and_caches_meeting_context(monkeypatch):
 
 def test_prompt_includes_language_and_tone_mirroring():
     prompt = system_prompt()
-    assert "Hinglish (including Hindi in Roman script)" in prompt
-    assert "immediately if the participant switches language" in prompt
+    assert "response_text must be in Hindi only, written in Devanagari" in prompt
+    assert "response_text must be in English only" in prompt
+    assert "Never include emojis" in prompt
+    assert "Adapt immediately if the participant" in prompt

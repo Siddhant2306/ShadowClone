@@ -19,6 +19,7 @@ from app.schemas.conversation import (
     Resolution,
 )
 from app.reasoning import reason
+from app.diagnostics import emit
 from fastapi import File, UploadFile, Response
 from app import gnani
 from app.models.voice import Voice
@@ -56,11 +57,7 @@ def load_live_session(db, cid, token):
     if not login or login.expires < time.time():
         return None
     row = db.get(Conversation, cid)
-    if (
-        not row
-        or row.user_id != login.user_id
-        or row.channel != "google_meet_live"
-    ):
+    if not row or row.user_id != login.user_id or row.channel != "google_meet_live":
         return None
     voice = db.get(Voice, login.user_id)
     if not voice:
@@ -127,7 +124,12 @@ def load_meeting_context(db, cid):
 
 
 @router.post("/api/conversations/{cid}/audio-turn")
-async def audio_turn(cid: str, file: UploadFile = File(...), uid=Depends(account), db: Session = Depends(database)):
+async def audio_turn(
+    cid: str,
+    file: UploadFile = File(...),
+    uid=Depends(account),
+    db: Session = Depends(database),
+):
     row = owned_conversation(cid, uid, db)
     if row.status != "listening":
         raise HTTPException(409, "Conversation is not listening")
@@ -144,13 +146,19 @@ async def audio_turn(cid: str, file: UploadFile = File(...), uid=Depends(account
 @router.post("/api/conversations/{cid}/speech")
 async def speak_reply(cid: str, uid=Depends(account), db: Session = Depends(database)):
     row = owned_conversation(cid, uid, db)
-    if row.status != "listening" or not row.transcript or row.transcript[-1]["role"] != "assistant":
+    if (
+        row.status != "listening"
+        or not row.transcript
+        or row.transcript[-1]["role"] != "assistant"
+    ):
         raise HTTPException(409, "Approve the response before speaking")
     voice = db.get(Voice, uid)
     if not voice:
         raise HTTPException(409, "Enrol your voice in Voice identity first")
     audio = await gnani.synthesize(row.transcript[-1]["content"], voice.embedding)
-    return Response(audio, media_type="audio/wav", headers={"Cache-Control": "no-store"})
+    return Response(
+        audio, media_type="audio/wav", headers={"Cache-Control": "no-store"}
+    )
 
 
 @router.post("/api/conversations")
@@ -182,9 +190,7 @@ def create_conversation(
         channel=body.channel,
         status="listening",
         started_at=int(time.time()),
-        transcript=[
-            {"role": "assistant", "content": introduction}
-        ],
+        transcript=[{"role": "assistant", "content": introduction}],
     )
     db.add(row)
     if body.channel == "google_meet_live":
@@ -232,6 +238,7 @@ def update_meeting_context(
 async def process_live_audio(
     websocket, session_data, db_call, audio, stopped, received_at
 ):
+    emit("live.turn.start", conversation_id=session_data["id"], audio_bytes=len(audio))
     received_at = received_at or time.perf_counter()
     processed_at = time.perf_counter()
     transcript_received_at = None
@@ -243,6 +250,7 @@ async def process_live_audio(
         await websocket.send_json({"type": "status", "status": "transcribing"})
         transcript = (await gnani.transcribe(wav)).strip()
         transcript_received_at = time.perf_counter()
+        emit("live.transcript", conversation_id=session_data["id"], content=transcript)
         if not transcript:
             await websocket.send_json({"type": "ignored"})
             return
@@ -276,6 +284,7 @@ async def process_live_audio(
             if first_token_at is None:
                 first_token_at = time.perf_counter()
 
+        emit("live.reasoning.context", content=reason_context)
         reply = await reason(reason_context, on_first_token=on_first_token)
         reason_completed_at = time.perf_counter()
         if stopped.is_set() or not session_data["active"]:
@@ -288,9 +297,7 @@ async def process_live_audio(
             )
         await websocket.send_json({"type": "status", "status": "speaking"})
         synthesis_started_at = time.perf_counter()
-        speech = await gnani.synthesize(
-            response_text, session_data["voice_embedding"]
-        )
+        speech = await gnani.synthesize(response_text, session_data["voice_embedding"])
         synthesis_completed_at = time.perf_counter()
         if stopped.is_set() or not session_data["active"]:
             return
@@ -352,6 +359,7 @@ async def process_live_audio(
             {"type": "error", "message": "Live response failed; check the backend logs"}
         )
     finally:
+        emit("live.turn.end", conversation_id=session_data["id"])
         if not stopped.is_set() and session_data["active"]:
             await websocket.send_json({"type": "turn_complete"})
 
@@ -512,6 +520,7 @@ async def turn(
     reply = await reason(
         {
             "profile": profile.data if profile else {},
+            "meeting_context": load_meeting_context(db, cid),
             "memories": relevant,
             "history": row.transcript[-12:],
             "question": body.text,

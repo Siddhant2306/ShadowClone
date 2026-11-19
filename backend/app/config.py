@@ -6,9 +6,15 @@ from urllib.parse import urlsplit, urlunsplit
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+from app.diagnostics import configure
+
+configure()
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise RuntimeError("Set DATABASE_URL to your Supabase PostgreSQL URL in backend/.env")
+    raise RuntimeError(
+        "Set DATABASE_URL to your Supabase PostgreSQL URL in backend/.env"
+    )
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 ALLOWED_ORIGINS = {FRONTEND_URL.rstrip("/")}
 _frontend = urlsplit(FRONTEND_URL)
