@@ -5,6 +5,8 @@ __pycache__/
 .pytest_cache/
 .env
 *.db
-
+/shadow-clone-video
+/.motion-tools
+/frontend/assets
 # Local debug traces can contain personal conversation data.
 backend/logs/
